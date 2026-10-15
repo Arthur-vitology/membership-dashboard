@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vitology Membership Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --coral: #D87559;
+    --coral-soft: #F0D5CC;
+    --slate: #45565b;
+    --slate-light: #7d8b8f;
+    --bg: #f3f5f5;
+    --card: #ffffff;
+    --border: #e2e7e8;
+    --text: #2f3a3d;
+    --mute: #8a9598;
+    --good: #4a7c3f;
+    --bad: #a8463a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 14px; }
+  body {
+    font-family: 'Poppins', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 24px;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1400px; margin: 0 auto; }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .brand h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--slate);
+    letter-spacing: -0.01em;
+  }
+  .brand .sub {
+    color: var(--mute);
+    font-size: 0.95rem;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .refresh-btn {
+    background: var(--slate);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .refresh-btn:hover { background: #566971; }
+  .refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .month-picker {
+    appearance: none;
+    -webkit-appearance: none;
+    background: white;
+    border: 1px solid var(--border);
+    color: var(--slate);
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 9px 32px 9px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2345565b' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+  }
+  .month-picker:focus { outline: 2px solid var(--coral); outline-offset: 2px; }
+  .status { font-size: 0.85rem; color: var(--mute); }
+  .status.loading { color: var(--coral); }
+  .status.error { color: var(--bad); }
+
+  /* Loading */
+  .loading-overlay {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 80px 0;
+    color: var(--mute);
+  }
+
+  /* Grid */
+  .grid { display: grid; gap: 20px; }
+  .kpi-row {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    margin-bottom: 20px;
+  }
+  .two-col { grid-template-columns: 2fr 1fr; }
+  @media (max-width: 900px) {
+    .two-col { grid-template-columns: 1fr; }
+  }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .card-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--mute);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+  }
+  .card-section-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--slate);
+    margin-bottom: 18px;
+  }
+
+  /* KPI tiles */
+  .kpi {
+    padding: 20px 22px;
+  }
+  .kpi .label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--mute);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
+  .kpi .value {
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: var(--slate);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .kpi .value.coral { color: var(--coral); }
+  .kpi .delta {
+    font-size: 0.85rem;
+    color: var(--mute);
+  }
+  .kpi .delta.pos { color: var(--good); }
+  .kpi .delta.neg { color: var(--bad); }
+
+  /* Progress bar */
+  .progress-wrap {
+    margin-top: 14px;
+  }
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--coral);
+    transition: width 0.4s ease;
+    border-radius: 4px;
+  }
+  .progress-fill.over { background: var(--good); }
+  .progress-fill.neg { background: var(--bad); }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    color: var(--mute);
+  }
+
+  /* Membership breakdown */
+  .tier-row {
+    display: grid;
+    grid-template-columns: 100px 1fr auto auto;
+    gap: 14px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .tier-row:last-child { border-bottom: none; }
+  .tier-name {
+    font-weight: 600;
+    color: var(--slate);
+  }
+  .tier-bar {
+    height: 10px;
+    background: var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+  .tier-bar-fill { height: 100%; border-radius: 5px; }
+  .tier-count {
+    font-weight: 600;
+    color: var(--slate);
+    min-width: 48px;
+    text-align: right;
+  }
+  .tier-pct {
+    font-size: 0.85rem;
+    color: var(--mute);
+    min-width: 48px;
+    text-align: right;
+  }
+
+  /* Toggle */
+  .toggle-group {
+    display: inline-flex;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .toggle-btn {
+    background: transparent;
+    border: none;
+    padding: 7px 14px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--mute);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+  .toggle-btn.active {
+    background: white;
+    color: var(--slate);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  /* Chart */
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .chart-container {
+    position: relative;
+    height: 320px;
+  }
+  .chart-footnote {
+    font-size: 0.78rem;
+    color: var(--mute);
+    margin-top: 12px;
+    font-style: italic;
+  }
+
+  /* Vestiging split */
+  .vest-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 14px;
+  }
+  .vest-tile {
+    padding: 14px;
+    background: var(--bg);
+    border-radius: 8px;
+  }
+  .vest-tile .vest-name {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--mute);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+  .vest-tile .vest-count {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--slate);
+    line-height: 1;
+  }
+  .vest-tile .vest-pts {
+    font-size: 0.82rem;
+    color: var(--mute);
+    margin-top: 4px;
+  }
+
+  /* Changes */
+  .change-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  /* Events detail table */
+  .events-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 10px;
+  }
+  @media (max-width: 1000px) {
+    .events-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 560px) {
+    .events-grid { grid-template-columns: 1fr; }
+  }
+  .events-col {
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 12px 14px;
+    min-height: 100px;
+  }
+  .events-col-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--mute);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .events-count {
+    background: var(--card);
+    color: var(--slate);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.72rem;
+  }
+  .events-list {
+    max-height: 320px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .event-row {
+    background: var(--card);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 0.82rem;
+    line-height: 1.3;
+  }
+  .event-row .ev-name {
+    font-weight: 600;
+    color: var(--slate);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .event-row .ev-pts { font-size: 0.78rem; color: var(--coral); font-weight: 600; white-space: nowrap; }
+  .event-row .ev-pts.neg { color: var(--bad); }
+  .event-row .ev-meta {
+    color: var(--mute);
+    font-size: 0.74rem;
+    margin-top: 2px;
+  }
+  .event-row .ev-source {
+    display: inline-block;
+    background: #ebeeef;
+    color: var(--slate-light);
+    font-size: 0.68rem;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 4px;
+  }
+  .events-empty {
+    color: var(--mute);
+    font-size: 0.82rem;
+    font-style: italic;
+    padding: 8px;
+  }
+
+  .error-box {
+    background: #fff2f0;
+    border: 1px solid #f8c8c1;
+    color: var(--bad);
+    padding: 16px;
+    border-radius: 8px;
+    margin: 20px 0;
+  }
+
+  footer {
+    margin-top: 30px;
+    text-align: center;
+    color: var(--mute);
+    font-size: 0.8rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="brand">
+      <h1>Membership Dashboard</h1>
+      <div class="sub">Vitology · live overzicht van actieve members, targets en groei</div>
+    </div>
+    <div class="controls">
+      <label for="month-picker" style="font-size:0.85rem; color:var(--mute); margin-right:4px;">Maand:</label>
+      <select id="month-picker" class="month-picker"></select>
+      <div class="status" id="status">Data laden…</div>
+      <button class="refresh-btn" id="refresh-btn">Ververs</button>
+    </div>
+  </div>
+
+  <div id="loading" class="loading-overlay">Data wordt opgehaald uit Google Sheets…</div>
+  <div id="error-container"></div>
+  <div id="dashboard" style="display:none;">
+    
+
+    <!-- KPI row -->
+    <div class="grid kpi-row">
+      <div class="card kpi">
+        <div class="label">Actieve members</div>
+        <div class="value" id="kpi-active">—</div>
+        <div class="delta" id="kpi-active-sub">Schilde + Antwerpen</div>
+      </div>
+      <div class="card kpi">
+        <div class="label">Totale punten</div>
+        <div class="value" id="kpi-points">—</div>
+        <div class="delta" id="kpi-points-sub">volgens puntensysteem</div>
+      </div>
+      <div class="card kpi">
+        <div class="label" id="kpi-net-members-label">Netto deze maand (members)</div>
+        <div class="value" id="kpi-net-members">—</div>
+        <div class="delta" id="kpi-net-members-sub">nieuw min stop</div>
+      </div>
+      <div class="card kpi">
+        <div class="label" id="kpi-net-points-label">Netto deze maand (punten)</div>
+        <div class="value coral" id="kpi-net-points">—</div>
+        <div class="delta" id="kpi-net-points-sub">—</div>
+      </div>
+    </div>
+
+    <!-- Target progress -->
+    <div class="card" style="margin-bottom: 20px;">
+      <div class="card-section-title" id="target-section-title">Target deze maand (netto punten)</div>
+      <div class="progress-label">
+        <span id="target-current">0 van 100 punten</span>
+        <span id="target-pct">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="target-fill" style="width:0%"></div>
+      </div>
+      <div class="chart-footnote" id="target-note"></div>
+    </div>
+
+    <!-- Membership breakdown + Vestiging -->
+    <div class="grid two-col">
+      <div class="card">
+        <div class="card-section-title">Verdeling per membership</div>
+        <div id="tier-breakdown"></div>
+      </div>
+      <div class="card">
+        <div class="card-section-title">Per vestiging</div>
+        <div class="vest-grid" id="vest-split"></div>
+
+        <div class="card-section-title" id="changes-section-title" style="margin-top: 28px;">Deze maand</div>
+        <div class="change-grid">
+          <div>
+            <div class="label" style="font-size:0.78rem; color:var(--mute); font-weight:600; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Upgrades</div>
+            <div style="font-size:1.6rem; font-weight:700; color:var(--good);" id="kpi-upgrades">—</div>
+          </div>
+          <div>
+            <div class="label" style="font-size:0.78rem; color:var(--mute); font-weight:600; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Downgrades</div>
+            <div style="font-size:1.6rem; font-weight:700; color:var(--bad);" id="kpi-downgrades">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card" style="margin-top:20px;">
+      <div class="chart-header">
+        <div class="card-section-title" style="margin-bottom:0;">Netto groei per maand</div>
+        <div class="toggle-group">
+          <button class="toggle-btn active" data-mode="members">Aantal members</button>
+          <button class="toggle-btn" data-mode="points">Punten</button>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="growth-chart"></canvas>
+      </div>
+      <div class="chart-footnote">
+        Netto groei = nieuwe starters + upgrades − stops − downgrades in die maand. Nieuwe starters komen uit klantenlijst + facturen (gededupliceerd). Toekomstige maanden met al bekende opzegdatums worden niet getoond.
+      </div>
+    </div>
+
+    <!-- Detail-tabel deze maand (voor handmatige controle) -->
+    <div class="card" style="margin-top:20px;">
+      <div class="chart-header">
+        <div class="card-section-title" id="detail-section-title" style="margin-bottom:0;">Alle events deze maand — detail</div>
+        <div class="chart-footnote" style="margin-top:0;">Voor handmatige controle: zie precies wie geteld wordt en hoe.</div>
+      </div>
+      <div class="events-grid">
+        <div class="events-col">
+          <div class="events-col-title">Nieuwe starters <span class="events-count" id="ev-new-count">0</span></div>
+          <div class="events-list" id="ev-new-list"></div>
+        </div>
+        <div class="events-col">
+          <div class="events-col-title">Upgrades <span class="events-count" id="ev-up-count">0</span></div>
+          <div class="events-list" id="ev-up-list"></div>
+        </div>
+        <div class="events-col">
+          <div class="events-col-title">Downgrades <span class="events-count" id="ev-down-count">0</span></div>
+          <div class="events-list" id="ev-down-list"></div>
+        </div>
+        <div class="events-col">
+          <div class="events-col-title">Stops <span class="events-count" id="ev-stop-count">0</span></div>
+          <div class="events-list" id="ev-stop-list"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    Live data uit <code>klantenlijst</code> en <code>facturen</code> via Google Apps Script · Dashboard genereert alles client-side · Rotterdam uitgesloten
+  </footer>
+
+</div>
+
+<script>
+// =============================================================================
+// Configuratie
+// =============================================================================
+// LIVE MODE — fetches direct uit twee Google Apps Script endpoints bij elke page load.
+// Scripts leveren JSON met CORS-headers, zodat de browser-fetch werkt.
+const KLANTEN_URL = 'https://script.google.com/macros/s/AKfycbwfdjead-ruKvHJBveMEMiFHerbC8NKeSBybu5KmOdWz4RlD1Y0IyDNRd_nBqhPaeyu/exec';
+const FACTUREN_URL = 'https://script.google.com/macros/s/AKfycby8SuLHN1_AflE5F40nW3dH4pEwQO5-K7KugZlVw9ge7VyLWYJ1tbB1LPIXCAcue9GMIg/exec';
+
+// Puntensysteem — alle varianten per tier geven hetzelfde aantal punten
+const POINTS = {
+  'Vitologist Explorer': 0.5,
+  'Vitologist Explorer Flex': 0.5,
+  'Vitologist Explorer (6 maanden)': 0.5,
+  'Vitologist PRO': 2,
+  'Vitologist Pro': 2, // typo-tolerant
+  'Vitologist PRO Flex': 2,
+  'Vitologist PRO (6 maanden)': 2,
+  'Vitologist VIP': 3,
+  'Vitologist VIP Flex': 3,
+  'Vitologist VIP (6 maanden)': 3,
+  'Vitologist ALL-IN': 5,
+  'Vitologist ALL-IN Flex': 5,
+  'Vitologist ALL-IN (6 maanden)': 5,
+};
+
+// Maandelijkse targets in netto punten. Uitbreidbaar door Arthur.
+// Sleutel = YYYY-MM. Default voor ontbrekende maanden valt terug op 100.
+const MONTHLY_TARGETS = {
+  '2026-10': 100,
+  // '2026-11': 100,  // Arthur levert aan
+};
+const DEFAULT_TARGET = 100;
+
+// Tier-kleuren
+const TIER_COLORS = {
+  'Explorer': '#A5BFC2',
+  'PRO': '#D87559',
+  'VIP': '#45565b',
+  'All-IN': '#2f3a3d',
+};
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+// Robuuste CSV parser: handles quoted fields, embedded commas, embedded newlines
+function parseCSV(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i+1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        field += c;
+      }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  if (!rows.length) return [];
+  const headers = rows[0];
+  return rows.slice(1).filter(r => r.length === headers.length).map(r => {
+    const obj = {};
+    headers.forEach((h, i) => obj[h] = r[i]);
+    return obj;
+  });
+}
+
+// Nederlandse datum parser: DD-M-YYYY, DD-MM-YYYY, DD/MM/YYYY, YYYY-MM-DD
+function parseDate(s) {
+  if (!s) return null;
+  s = String(s).trim();
+  if (!s || s === '/') return null;
+  // ISO formaat
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
+  // DD-M-YYYY of DD-MM-YYYY of DD/MM/YYYY
+  m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if (m) return new Date(Date.UTC(+m[3], +m[2]-1, +m[1]));
+  // DD-M-YY (2-cijfer jaar)
+  m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2})$/);
+  if (m) return new Date(Date.UTC(2000 + +m[3], +m[2]-1, +m[1]));
+  // JavaScript Date toString format: "Thu Oct 01 2026 00:00:00 GMT+0200 (...)"
+  // Apps Script geeft dit terug wanneer de Date-detectie faalt. new Date() parseert dit native.
+  if (/^\w{3} \w{3} \d{1,2} \d{4}/.test(s)) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      // Normaliseer naar UTC-middernacht om tijdzone-drift te vermijden
+      return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    }
+  }
+  return null;
+}
+
+function toMonthKey(d) {
+  if (!d) return null;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+}
+
+function currentMonthKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+// Map een membership-string naar één tier
+function toTier(name) {
+  if (!name) return null;
+  if (name.includes('Explorer')) return 'Explorer';
+  if (name.includes('PRO') || name === 'Vitologist Pro') return 'PRO';
+  if (name.includes('VIP')) return 'VIP';
+  if (name.includes('ALL-IN')) return 'All-IN';
+  return null;
+}
+
+function tierRank(name) {
+  const map = { 'Explorer': 1, 'PRO': 2, 'VIP': 3, 'All-IN': 4 };
+  return map[toTier(name)] || 0;
+}
+
+function fmt(n) {
+  return new Intl.NumberFormat('nl-BE').format(n);
+}
+function fmtPts(n) {
+  return new Intl.NumberFormat('nl-BE', { maximumFractionDigits: 1 }).format(n);
+}
+function monthLabel(key) {
+  const [y, m] = key.split('-');
+  const months = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+  return `${months[+m-1]} '${y.slice(2)}`;
+}
+
+// =============================================================================
+// Data fetching
+// =============================================================================
+async function fetchData() {
+  const t0 = Date.now();
+  const [k, f] = await Promise.all([
+    fetch(KLANTEN_URL).then(r => r.json()),
+    fetch(FACTUREN_URL).then(r => r.json()),
+  ]);
+  return {
+    klanten: k,
+    facturen: f,
+    fetchMs: Date.now() - t0,
+  };
+}
+
+// =============================================================================
+// Berekeningen
+// =============================================================================
+function compute(data) {
+  // Filter Rotterdam uit facturen (klanten heeft geen Rotterdam)
+  const klanten = data.klanten;
+
+  // Actieve members = status "Ja" of "Opzeg"
+  const actieve = klanten.filter(r =>
+    r['Vitologist?'] === 'Ja' || r['Vitologist?'] === 'Opzeg'
+  );
+
+  // Per tier
+  const tierCount = { 'Explorer': 0, 'PRO': 0, 'VIP': 0, 'All-IN': 0 };
+  const tierPoints = { 'Explorer': 0, 'PRO': 0, 'VIP': 0, 'All-IN': 0 };
+  actieve.forEach(r => {
+    const t = toTier(r['Abo actueel']);
+    if (t) {
+      tierCount[t]++;
+      tierPoints[t] += (POINTS[r['Abo actueel']] || 0);
+    }
+  });
+
+  const totalMembers = actieve.length;
+  const totalPoints = Object.values(tierPoints).reduce((a,b) => a+b, 0);
+
+  // Per vestiging
+  const vestCount = {};
+  const vestPoints = {};
+  actieve.forEach(r => {
+    const v = r['Vestiging'] || 'Onbekend';
+    vestCount[v] = (vestCount[v] || 0) + 1;
+    vestPoints[v] = (vestPoints[v] || 0) + (POINTS[r['Abo actueel']] || 0);
+  });
+
+  // Maandelijkse nieuwe/stop/upgrade/downgrade
+  // upgradeP/downgradeP = puntverschil (altijd positief; teken komt uit welk veld)
+  const monthData = {};
+  function ensure(k) {
+    if (!monthData[k]) monthData[k] = {
+      newM:0, newP:0, stopM:0, stopP:0,
+      upgradesM:0, upgradeP:0,
+      downgradesM:0, downgradeP:0
+    };
+    return monthData[k];
+  }
+
+  // --- Deel 1: alle events opbouwen (type, naam, datum, abo, punten) ---
+  // Events worden later in monthData geaggregeerd EN gebruikt voor de detail-tabel.
+  const events = []; // {type, name, email, date, abo, pts, source}
+  function nameKey(voor, achter) {
+    return `${(voor||'').toLowerCase().trim()}_${(achter||'').toLowerCase().trim()}`;
+  }
+
+  // 1A. Nieuwe starters uit klantenlijst
+  const klantNewByKey = {};  // dedup-key -> event
+  klanten.forEach(r => {
+    const dStart = parseDate(r['Datum Vitologist geworden']);
+    if (!dStart) return;
+    const email = (r['Mail'] || '').toLowerCase().trim();
+    const nkey = nameKey(r['Voornaam'], r['Achternaam']);
+    const pts = POINTS[r['Abo bij instap']] || 0;
+    const ev = {
+      type: 'new',
+      name: `${r['Voornaam']} ${r['Achternaam']}`.trim(),
+      email,
+      namekey: nkey,
+      date: dStart,
+      abo: r['Abo bij instap'],
+      pts,
+      source: 'klantenlijst'
+    };
+    klantNewByKey[email || nkey] = ev;
+    if (nkey) klantNewByKey[nkey] = ev; // dubbele registratie zodat zowel email als naam-key matchen
+    events.push(ev);
+  });
+
+  // 1B. Stops uit klantenlijst
+  klanten.forEach(r => {
+    const dStop = parseDate(r['Datum stopzetting']);
+    if (!dStop) return;
+    const abo = r['Abo actueel'] || r['Abo bij instap'];
+    events.push({
+      type: 'stop',
+      name: `${r['Voornaam']} ${r['Achternaam']}`.trim(),
+      email: (r['Mail'] || '').toLowerCase().trim(),
+      date: dStop,
+      abo,
+      pts: POINTS[abo] || 0,
+      source: 'klantenlijst'
+    });
+  });
+
+  // 2. Facturen groeperen per memberId voor upgrades/downgrades EN voor nieuwe starters
+  //    die nog niet in de klantenlijst staan.
+  const invoicesByMember = {};
+  data.facturen.forEach(f => {
+    if (f.location === 'Vitology Rotterdam') return;
+    const sub = f.subscription;
+    if (!sub || !toTier(sub)) return;
+    const dStr = f.subscriptionStartPeriod || f.invoiceDate;
+    const d = parseDate(dStr);
+    if (!d) return;
+    if (!invoicesByMember[f.memberId]) invoicesByMember[f.memberId] = [];
+    invoicesByMember[f.memberId].push({
+      date: d, sub, rank: tierRank(sub), pts: POINTS[sub] || 0,
+      name: f.memberName || '', email: (f.memberEmail || '').toLowerCase().trim(),
+    });
+  });
+
+  Object.entries(invoicesByMember).forEach(([mid, list]) => {
+    list.sort((a,b) => a.date - b.date);
+    const first = list[0];
+
+    // 2A. Nieuwe starter uit facturen? Alleen als deze persoon NIET in klantNewByKey staat.
+    const nameParts = first.name.split(/\s+/);
+    const voor = nameParts[0] || '';
+    const achter = nameParts.slice(1).join(' ');
+    const nkey = nameKey(voor, achter);
+    const alreadyInKlanten = (first.email && klantNewByKey[first.email])
+                          || (nkey && klantNewByKey[nkey]);
+    if (!alreadyInKlanten) {
+      events.push({
+        type: 'new',
+        name: first.name,
+        email: first.email,
+        date: first.date,
+        abo: first.sub,
+        pts: first.pts,
+        source: 'facturen'
+      });
+    }
+
+    // 2B. Upgrades/downgrades uit tier-wissels
+    let prev = null;
+    list.forEach(inv => {
+      if (prev && inv.rank !== prev.rank) {
+        const diff = Math.abs(inv.pts - prev.pts);
+        events.push({
+          type: inv.rank > prev.rank ? 'upgrade' : 'downgrade',
+          name: inv.name,
+          email: inv.email,
+          date: inv.date,
+          abo: `${prev.sub} → ${inv.sub}`,
+          pts: diff,
+          source: 'facturen'
+        });
+      }
+      prev = inv;
+    });
+  });
+
+  // Aggregeer events in monthData
+  events.forEach(ev => {
+    const k = toMonthKey(ev.date);
+    const b = ensure(k);
+    if (ev.type === 'new') { b.newM++; b.newP += ev.pts; }
+    else if (ev.type === 'stop') { b.stopM++; b.stopP += ev.pts; }
+    else if (ev.type === 'upgrade') { b.upgradesM++; b.upgradeP += ev.pts; }
+    else if (ev.type === 'downgrade') { b.downgradesM++; b.downgradeP += ev.pts; }
+  });
+
+  // Nu afleiden: deze maand en lijst voor chart
+  const curMonth = currentMonthKey();
+  const curBucket = monthData[curMonth] || {
+    newM:0, newP:0, stopM:0, stopP:0,
+    upgradesM:0, upgradeP:0, downgradesM:0, downgradeP:0
+  };
+
+  // Alleen maanden t/m huidige maand voor chart
+  const sortedMonths = Object.keys(monthData).sort();
+  const chartMonths = sortedMonths.filter(m => m <= curMonth);
+
+  // Target voor huidige maand
+  const target = MONTHLY_TARGETS[curMonth] || DEFAULT_TARGET;
+  // Netto punten = instap + upgrades - stops - downgrades
+  const netPointsThisMonth = curBucket.newP + curBucket.upgradeP
+                           - curBucket.stopP - curBucket.downgradeP;
+  // Netto members = nieuwe starters - stops (upgrades/downgrades wijzigen het aantal members niet)
+  const netMembersThisMonth = curBucket.newM - curBucket.stopM;
+  const targetPct = target > 0 ? (netPointsThisMonth / target * 100) : 0;
+
+  return {
+    totalMembers, totalPoints,
+    tierCount, tierPoints,
+    vestCount, vestPoints,
+    monthData, chartMonths, curMonth,
+    events,  // alle events, filtering per maand gebeurt in render()
+  };
+}
+
+// =============================================================================
+// Rendering
+// =============================================================================
+let chartInstance = null;
+let chartMode = 'members';
+let computed = null;
+let selectedMonth = null;  // YYYY-MM; default = huidige maand
+
+function monthLabelLong(key) {
+  const [y, m] = key.split('-');
+  const months = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+  return `${months[+m-1]} ${y}`;
+}
+
+function render(data) {
+  const c = compute(data);
+  computed = c;
+
+  // Default selectedMonth = huidige maand bij eerste render
+  if (!selectedMonth) selectedMonth = c.curMonth;
+
+  // Vul maand-picker met beschikbare maanden (chronologisch, nieuwste eerst)
+  const picker = document.getElementById('month-picker');
+  if (!picker.dataset.populated) {
+    picker.innerHTML = '';
+    // Alleen maanden t/m huidige maand
+    const availableMonths = c.chartMonths.slice().reverse();
+    availableMonths.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = monthLabelLong(m);
+      if (m === selectedMonth) opt.selected = true;
+      picker.appendChild(opt);
+    });
+    picker.dataset.populated = '1';
+    picker.addEventListener('change', (e) => {
+      selectedMonth = e.target.value;
+      renderForMonth();
+    });
+  }
+
+  renderForMonth();
+}
+
+function renderForMonth() {
+  const c = computed;
+  if (!c) return;
+  const m = selectedMonth;
+  const monthName = monthLabelLong(m);
+  const isCurrent = (m === c.curMonth);
+  const prettyLabel = isCurrent ? 'deze maand' : monthName;
+
+  // Huidige actieve members en punten zijn een snapshot van NU, niet maand-afhankelijk
+  document.getElementById('kpi-active').textContent = fmt(c.totalMembers);
+  const schilde = c.vestCount['Schilde'] || 0;
+  const antwerpen = c.vestCount['Antwerpen'] || 0;
+  document.getElementById('kpi-active-sub').textContent = `${fmt(schilde)} Schilde · ${fmt(antwerpen)} Antwerpen`;
+  document.getElementById('kpi-points').textContent = fmtPts(c.totalPoints);
+
+  // Maand-afhankelijke KPI's
+  const bucket = c.monthData[m] || {
+    newM:0, newP:0, stopM:0, stopP:0, upgradesM:0, upgradeP:0, downgradesM:0, downgradeP:0
+  };
+  const netMembers = bucket.newM - bucket.stopM;
+  const netPoints = bucket.newP + bucket.upgradeP - bucket.stopP - bucket.downgradeP;
+
+  document.getElementById('kpi-net-members-label').textContent = `Netto ${prettyLabel} (members)`;
+  const nmEl = document.getElementById('kpi-net-members');
+  nmEl.textContent = (netMembers >= 0 ? '+' : '') + fmt(netMembers);
+  nmEl.style.color = netMembers > 0 ? 'var(--good)' : (netMembers < 0 ? 'var(--bad)' : 'var(--slate)');
+  document.getElementById('kpi-net-members-sub').textContent = `${bucket.newM} nieuw · ${bucket.stopM} stop`;
+
+  document.getElementById('kpi-net-points-label').textContent = `Netto ${prettyLabel} (punten)`;
+  const npEl = document.getElementById('kpi-net-points');
+  npEl.textContent = (netPoints >= 0 ? '+' : '') + fmtPts(netPoints);
+  npEl.style.color = netPoints > 0 ? 'var(--good)' : (netPoints < 0 ? 'var(--bad)' : 'var(--coral)');
+  const subParts = [];
+  if (bucket.newP) subParts.push(`+${fmtPts(bucket.newP)} nieuw`);
+  if (bucket.upgradeP) subParts.push(`+${fmtPts(bucket.upgradeP)} upgrade`);
+  if (bucket.stopP) subParts.push(`−${fmtPts(bucket.stopP)} stop`);
+  if (bucket.downgradeP) subParts.push(`−${fmtPts(bucket.downgradeP)} downgrade`);
+  document.getElementById('kpi-net-points-sub').textContent = subParts.join(' · ') || '—';
+
+  // Target progress
+  const target = MONTHLY_TARGETS[m] || DEFAULT_TARGET;
+  const targetPct = target > 0 ? (netPoints / target * 100) : 0;
+  const pct = Math.max(0, Math.min(100, targetPct));
+  document.getElementById('target-section-title').textContent = `Target ${prettyLabel} (netto punten)`;
+  document.getElementById('target-current').textContent = `${fmtPts(netPoints)} van ${target} punten`;
+  document.getElementById('target-pct').textContent = `${Math.round(targetPct)}%`;
+  const fill = document.getElementById('target-fill');
+  fill.style.width = pct + '%';
+  fill.className = 'progress-fill';
+  if (targetPct >= 100) fill.classList.add('over');
+  if (netPoints < 0) { fill.classList.add('neg'); fill.style.width = '0%'; }
+  const noteEl = document.getElementById('target-note');
+  const targetSource = MONTHLY_TARGETS[m] ? 'ingesteld maandtarget' : `default ${DEFAULT_TARGET} punten (geen specifiek target voor deze maand)`;
+  const pool = netPoints > 0 ? netPoints * 10 : 0;
+  const poolLabel = isCurrent ? 'Lopende bonuspool bij huidige stand' : `Bonuspool ${monthName}`;
+  noteEl.textContent = `${poolLabel}: € ${fmtPts(pool)} · ${targetSource}`;
+
+  // Tier breakdown
+  const tbEl = document.getElementById('tier-breakdown');
+  tbEl.innerHTML = '';
+  const tiers = ['Explorer', 'PRO', 'VIP', 'All-IN'];
+  const maxCount = Math.max(...tiers.map(t => c.tierCount[t]));
+  tiers.forEach(t => {
+    const count = c.tierCount[t];
+    const pts = c.tierPoints[t];
+    const pct = c.totalMembers > 0 ? (count / c.totalMembers * 100) : 0;
+    const barW = maxCount > 0 ? (count / maxCount * 100) : 0;
+    const row = document.createElement('div');
+    row.className = 'tier-row';
+    row.innerHTML = `
+      <div class="tier-name">${t}</div>
+      <div class="tier-bar"><div class="tier-bar-fill" style="width:${barW}%; background:${TIER_COLORS[t]}"></div></div>
+      <div class="tier-count">${fmt(count)}</div>
+      <div class="tier-pct">${pct.toFixed(1)}% · ${fmtPts(pts)} pt</div>
+    `;
+    tbEl.appendChild(row);
+  });
+
+  // Vestiging split
+  const vestEl = document.getElementById('vest-split');
+  vestEl.innerHTML = '';
+  ['Schilde', 'Antwerpen'].forEach(v => {
+    const count = c.vestCount[v] || 0;
+    const pts = c.vestPoints[v] || 0;
+    const tile = document.createElement('div');
+    tile.className = 'vest-tile';
+    tile.innerHTML = `
+      <div class="vest-name">${v}</div>
+      <div class="vest-count">${fmt(count)}</div>
+      <div class="vest-pts">${fmtPts(pts)} punten</div>
+    `;
+    vestEl.appendChild(tile);
+  });
+
+  // Changes (voor geselecteerde maand)
+  document.getElementById('changes-section-title').textContent = isCurrent ? 'Deze maand' : monthName;
+  document.getElementById('kpi-upgrades').textContent = fmt(bucket.upgradesM);
+  document.getElementById('kpi-downgrades').textContent = fmt(bucket.downgradesM);
+
+  // Detail-tabel voor geselecteerde maand
+  document.getElementById('detail-section-title').textContent =
+    `Alle events ${prettyLabel} — detail`;
+  const monthEvents = c.events.filter(ev => toMonthKey(ev.date) === m);
+  renderEventColumn('ev-new',  monthEvents.filter(e => e.type==='new'),      '+');
+  renderEventColumn('ev-up',   monthEvents.filter(e => e.type==='upgrade'),  '+');
+  renderEventColumn('ev-down', monthEvents.filter(e => e.type==='downgrade'),'-');
+  renderEventColumn('ev-stop', monthEvents.filter(e => e.type==='stop'),     '-');
+
+  // Chart laten we ongewijzigd (toont alle maanden)
+  renderChart();
+}
+
+function renderEventColumn(prefix, items, sign) {
+  const totalPts = items.reduce((sum, it) => sum + (it.pts || 0), 0);
+  document.getElementById(prefix + '-count').textContent = `${sign}${fmtPts(totalPts)} pt`;
+  const listEl = document.getElementById(prefix + '-list');
+  listEl.innerHTML = '';
+  if (!items.length) {
+    listEl.innerHTML = '<div class="events-empty">Geen events</div>';
+    return;
+  }
+  // Sorteer op datum, meest recent eerst
+  items.sort((a,b) => b.date - a.date);
+  items.forEach(ev => {
+    const row = document.createElement('div');
+    row.className = 'event-row';
+    const dateStr = ev.date.toLocaleDateString('nl-BE', {day:'numeric', month:'short'});
+    const sourceTag = ev.source === 'facturen'
+      ? '<span class="ev-source" title="Uit facturen (nog niet in klantenlijst)">factuur</span>'
+      : '';
+    row.innerHTML = `
+      <div class="ev-name">
+        <span>${escapeHtml(ev.name)}${sourceTag}</span>
+        <span class="ev-pts${sign==='-'?' neg':''}">${sign}${fmtPts(ev.pts)}</span>
+      </div>
+      <div class="ev-meta">${escapeHtml(ev.abo || '')} · ${dateStr}</div>
+    `;
+    listEl.appendChild(row);
+  });
+}
+
+function escapeHtml(s) {
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderChart() {
+  if (!computed) return;
+  const ctx = document.getElementById('growth-chart').getContext('2d');
+  const months = computed.chartMonths;
+  // Toon alleen laatste 12 maanden voor leesbaarheid
+  const show = months.slice(-12);
+  const labels = show.map(monthLabel);
+  const newData = show.map(m => computed.monthData[m].newM);
+  const stopData = show.map(m => -computed.monthData[m].stopM); // negatief
+  // Punten: nieuw+upgrade bovenin, stop+downgrade naar beneden
+  const newPts = show.map(m => computed.monthData[m].newP + computed.monthData[m].upgradeP);
+  const stopPts = show.map(m => -(computed.monthData[m].stopP + computed.monthData[m].downgradeP));
+  const netData = show.map(m => {
+    const b = computed.monthData[m];
+    return chartMode === 'points'
+      ? (b.newP + b.upgradeP - b.stopP - b.downgradeP)
+      : (b.newM - b.stopM);
+  });
+
+  if (chartInstance) chartInstance.destroy();
+
+  const barData = chartMode === 'points' ? [newPts, stopPts] : [newData, stopData];
+
+  chartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: chartMode === 'points' ? 'Nieuwe punten' : 'Nieuwe members',
+          data: barData[0],
+          backgroundColor: '#D87559',
+          borderRadius: 4,
+          stack: 'stack',
+        },
+        {
+          label: chartMode === 'points' ? 'Gestopte punten' : 'Gestopte members',
+          data: barData[1],
+          backgroundColor: '#A5BFC2',
+          borderRadius: 4,
+          stack: 'stack',
+        },
+        {
+          type: 'line',
+          label: chartMode === 'points' ? 'Netto groei (punten)' : 'Netto groei (members)',
+          data: netData,
+          borderColor: '#45565b',
+          backgroundColor: '#45565b',
+          borderWidth: 2.5,
+          pointRadius: 4,
+          pointBackgroundColor: '#45565b',
+          tension: 0.25,
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: {
+          stacked: true,
+          grid: { color: '#e8ecec' },
+          ticks: { callback: v => chartMode === 'points' ? fmtPts(v) : fmt(v) }
+        }
+      },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { usePointStyle: true, padding: 14, font: { family: 'Poppins', size: 12 } }
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.parsed.y;
+              const abs = Math.abs(v);
+              const fmtFn = chartMode === 'points' ? fmtPts : fmt;
+              return `${ctx.dataset.label}: ${v < 0 ? '−' : ''}${fmtFn(abs)}`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// =============================================================================
+// Init
+// =============================================================================
+async function load() {
+  const statusEl = document.getElementById('status');
+  const refreshBtn = document.getElementById('refresh-btn');
+  const loadingEl = document.getElementById('loading');
+  const dashEl = document.getElementById('dashboard');
+  const errEl = document.getElementById('error-container');
+
+  statusEl.textContent = 'Data laden…';
+  statusEl.className = 'status loading';
+  refreshBtn.disabled = true;
+  loadingEl.style.display = 'flex';
+  dashEl.style.display = 'none';
+  errEl.innerHTML = '';
+
+  try {
+    const data = await fetchData();
+    render(data);
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('nl-BE', {hour:'2-digit', minute:'2-digit'});
+    statusEl.textContent = `Laatst ververst om ${timeStr} · ${(data.fetchMs/1000).toFixed(1)}s`;
+    statusEl.className = 'status';
+    loadingEl.style.display = 'none';
+    dashEl.style.display = 'block';
+  } catch (err) {
+    statusEl.textContent = 'Fout bij laden';
+    statusEl.className = 'status error';
+    errEl.innerHTML = `<div class="error-box">
+      <strong>Kon de data niet laden.</strong> Mogelijke oorzaken:
+      <ul style="margin-top:8px; margin-left:20px;">
+        <li>Internetverbinding onderbroken</li>
+        <li>Een van de Google Sheets is niet meer publiek gedeeld ("Publish to web" uit)</li>
+        <li>Browser blokkeert de fetch (controleer console met F12)</li>
+      </ul>
+      <div style="margin-top:10px; font-family: monospace; font-size: 0.85rem;">${err.message}</div>
+    </div>`;
+    loadingEl.style.display = 'none';
+  }
+  refreshBtn.disabled = false;
+}
+
+document.getElementById('refresh-btn').addEventListener('click', load);
+document.querySelectorAll('.toggle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    chartMode = btn.dataset.mode;
+    renderChart();
+  });
+});
+
+load();
+</script>
+
+</body>
+</html>
