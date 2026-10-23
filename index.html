@@ -263,6 +263,20 @@
     flex-wrap: wrap; gap: 12px;
   }
   .chart-container { position: relative; height: 320px; }
+  .chart-container.compact { height: 260px; }
+  .vest-chart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 900px) { .vest-chart-grid { grid-template-columns: 1fr; } }
+  .vest-chart-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
   .chart-footnote {
     font-size: 0.78rem;
     color: var(--mute);
@@ -447,6 +461,24 @@
       </div>
       <div class="chart-footnote">
         Netto groei = nieuwe starters + upgrades − stops − downgrades in die maand (totaal over beide vestigingen). Rotterdam uitgesloten. Nieuwe starters komen uit klantenlijst + facturen (gededupliceerd op e-mail/naam).
+      </div>
+    </div>
+
+    <!-- Chart per vestiging -->
+    <div class="card" style="margin-top:20px;">
+      <div class="chart-header">
+        <div class="card-section-title" style="margin-bottom:0;">Netto groei per maand — per vestiging</div>
+        <div class="chart-footnote" style="margin-top:0;">Toggle hierboven schakelt alle 3 de grafieken.</div>
+      </div>
+      <div class="vest-chart-grid">
+        <div>
+          <div class="vest-chart-title" style="color:var(--schilde)">Schilde</div>
+          <div class="chart-container compact"><canvas id="growth-chart-schilde"></canvas></div>
+        </div>
+        <div>
+          <div class="vest-chart-title" style="color:var(--antwerpen)">Antwerpen</div>
+          <div class="chart-container compact"><canvas id="growth-chart-antwerpen"></canvas></div>
+        </div>
       </div>
     </div>
 
@@ -808,6 +840,8 @@ function compute(data) {
 // Rendering
 // =============================================================================
 let chartInstance = null;
+let chartInstanceSchilde = null;
+let chartInstanceAntwerpen = null;
 let chartMode = 'members';
 let computed = null;
 let selectedMonth = null;
@@ -1089,29 +1123,27 @@ function escapeHtml(s) {
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-function renderChart() {
-  if (!computed) return;
-  const ctx = document.getElementById('growth-chart').getContext('2d');
-  const months = computed.chartMonths;
-  const show = months.slice(-12);
+// Bouwt één groei-chart voor een gegeven bucket-key ('totaal' | 'Schilde' | 'Antwerpen')
+function buildGrowthChart(canvasId, bucketKey, colors, currentInstance) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  const show = computed.chartMonths.slice(-12);
   const labels = show.map(monthLabel);
 
-  // Chart gebruikt totaal-bucket
-  const newData = show.map(m => computed.monthData[m].totaal.newM);
-  const stopData = show.map(m => -computed.monthData[m].totaal.stopM);
-  const newPts = show.map(m => computed.monthData[m].totaal.newP + computed.monthData[m].totaal.upgradeP);
-  const stopPts = show.map(m => -(computed.monthData[m].totaal.stopP + computed.monthData[m].totaal.downgradeP));
+  const newData = show.map(m => computed.monthData[m][bucketKey].newM);
+  const stopData = show.map(m => -computed.monthData[m][bucketKey].stopM);
+  const newPts = show.map(m => computed.monthData[m][bucketKey].newP + computed.monthData[m][bucketKey].upgradeP);
+  const stopPts = show.map(m => -(computed.monthData[m][bucketKey].stopP + computed.monthData[m][bucketKey].downgradeP));
   const netData = show.map(m => {
-    const b = computed.monthData[m].totaal;
+    const b = computed.monthData[m][bucketKey];
     return chartMode === 'points'
       ? (b.newP + b.upgradeP - b.stopP - b.downgradeP)
       : (b.newM - b.stopM);
   });
 
-  if (chartInstance) chartInstance.destroy();
+  if (currentInstance) currentInstance.destroy();
   const barData = chartMode === 'points' ? [newPts, stopPts] : [newData, stopData];
 
-  chartInstance = new Chart(ctx, {
+  return new Chart(ctx, {
     type: 'bar',
     data: {
       labels,
@@ -1119,20 +1151,20 @@ function renderChart() {
         {
           label: chartMode === 'points' ? 'Nieuwe punten' : 'Nieuwe members',
           data: barData[0],
-          backgroundColor: '#D87559', borderRadius: 4, stack: 'stack',
+          backgroundColor: colors.pos, borderRadius: 4, stack: 'stack',
         },
         {
           label: chartMode === 'points' ? 'Gestopte punten' : 'Gestopte members',
           data: barData[1],
-          backgroundColor: '#A5BFC2', borderRadius: 4, stack: 'stack',
+          backgroundColor: colors.neg, borderRadius: 4, stack: 'stack',
         },
         {
           type: 'line',
           label: chartMode === 'points' ? 'Netto groei (punten)' : 'Netto groei (members)',
           data: netData,
-          borderColor: '#45565b', backgroundColor: '#45565b',
-          borderWidth: 2.5, pointRadius: 4,
-          pointBackgroundColor: '#45565b',
+          borderColor: colors.line, backgroundColor: colors.line,
+          borderWidth: 2.5, pointRadius: 3,
+          pointBackgroundColor: colors.line,
           tension: 0.25, fill: false,
         }
       ]
@@ -1141,16 +1173,16 @@ function renderChart() {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       scales: {
-        x: { stacked: true, grid: { display: false } },
+        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 } } },
         y: {
           stacked: true, grid: { color: '#e8ecec' },
-          ticks: { callback: v => chartMode === 'points' ? fmtPts(v) : fmt(v) }
+          ticks: { callback: v => chartMode === 'points' ? fmtPts(v) : fmt(v), font: { size: 11 } }
         }
       },
       plugins: {
         legend: {
           position: 'bottom',
-          labels: { usePointStyle: true, padding: 14, font: { family: 'Poppins', size: 12 } }
+          labels: { usePointStyle: true, padding: 10, font: { family: 'Poppins', size: 11 } }
         },
         tooltip: {
           callbacks: {
@@ -1165,6 +1197,19 @@ function renderChart() {
       }
     }
   });
+}
+
+function renderChart() {
+  if (!computed) return;
+  // Totaal
+  chartInstance = buildGrowthChart('growth-chart', 'totaal',
+    { pos: '#D87559', neg: '#A5BFC2', line: '#45565b' }, chartInstance);
+  // Schilde
+  chartInstanceSchilde = buildGrowthChart('growth-chart-schilde', 'Schilde',
+    { pos: '#6a94a0', neg: '#c9dde2', line: '#2f4a52' }, chartInstanceSchilde);
+  // Antwerpen
+  chartInstanceAntwerpen = buildGrowthChart('growth-chart-antwerpen', 'Antwerpen',
+    { pos: '#c08b63', neg: '#ebd4bf', line: '#7a4d2b' }, chartInstanceAntwerpen);
 }
 
 // =============================================================================
