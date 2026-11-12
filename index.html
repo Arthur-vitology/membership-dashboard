@@ -184,6 +184,29 @@
   }
   .progress-label .pct { font-size: 1.3rem; font-weight: 700; color: var(--slate); }
   .progress-label .pct.over { color: var(--good); }
+  .target-input {
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--coral);
+    background: #fff5f1;
+    border: 1px solid var(--coral-soft);
+    border-radius: 6px;
+    padding: 3px 6px 3px 8px;
+    width: 72px;
+    text-align: right;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .target-input:hover { border-color: var(--coral); }
+  .target-input:focus {
+    outline: none;
+    border-color: var(--coral);
+    background: white;
+    box-shadow: 0 0 0 3px rgba(216, 117, 89, 0.15);
+  }
+  /* Spinner buttons blijven zichtbaar maar subtiel */
+  .target-input::-webkit-inner-spin-button,
+  .target-input::-webkit-outer-spin-button { opacity: 0.6; }
   .target-split {
     display: flex;
     gap: 20px;
@@ -425,7 +448,11 @@
     <div class="card" style="margin-bottom: 20px;">
       <div class="card-section-title" id="target-section-title">Target deze maand (netto punten)</div>
       <div class="progress-label">
-        <span id="target-current">0 van 100 punten</span>
+        <span>
+          <span id="target-current-value">0</span> van
+          <input type="number" id="target-input" class="target-input" min="0" step="1" value="100" aria-label="Target voor deze maand">
+          punten
+        </span>
         <span class="pct" id="target-pct">0%</span>
       </div>
       <div class="progress-bar">
@@ -539,10 +566,36 @@ const POINTS = {
   'Vitologist ALL-IN (6 maanden)': 5,
 };
 
+// Default targets voor een maand (fallback als niets opgeslagen staat).
+// De gebruiker kan per maand overschrijven via de input in het dashboard;
+// die overschrijvingen leven in localStorage onder 'vitology-target-YYYY-MM'.
 const MONTHLY_TARGETS = {
   '2026-10': 100,
 };
 const DEFAULT_TARGET = 100;
+const TARGET_STORAGE_PREFIX = 'vitology-target-';
+
+function getTargetFor(monthKey) {
+  try {
+    const stored = localStorage.getItem(TARGET_STORAGE_PREFIX + monthKey);
+    if (stored !== null && stored !== '') {
+      const n = Number(stored);
+      if (!Number.isNaN(n) && n >= 0) return n;
+    }
+  } catch (e) { /* localStorage kan geblokkeerd zijn */ }
+  return MONTHLY_TARGETS[monthKey] !== undefined ? MONTHLY_TARGETS[monthKey] : DEFAULT_TARGET;
+}
+
+function saveTargetFor(monthKey, value) {
+  try {
+    localStorage.setItem(TARGET_STORAGE_PREFIX + monthKey, String(value));
+  } catch (e) { /* niet fataal */ }
+}
+
+function hasStoredTarget(monthKey) {
+  try { return localStorage.getItem(TARGET_STORAGE_PREFIX + monthKey) !== null; }
+  catch (e) { return false; }
+}
 
 const TIER_COLORS = {
   'Explorer': '#A5BFC2',
@@ -845,6 +898,7 @@ let chartInstanceAntwerpen = null;
 let chartMode = 'members';
 let computed = null;
 let selectedMonth = null;
+let targetContext = null; // { month, netPT, netPS, netPA, prettyLabel, monthName, isCurrent }
 
 function render(data) {
   const c = compute(data);
@@ -998,34 +1052,15 @@ function renderForMonth() {
   `;
 
   // --- Target progress (gebruikt totaal) ---
-  const target = MONTHLY_TARGETS[m] || DEFAULT_TARGET;
-  const targetPct = target > 0 ? (netPT / target * 100) : 0;
-  const pct = Math.max(0, Math.min(100, targetPct));
+  // Bewaar netto punten + maandcontext in globale state zodat de input-handler
+  // kan hergeberekenen zonder de hele compute() opnieuw te draaien.
+  targetContext = { month: m, prettyLabel, monthName, isCurrent, netPT, netPS, netPA };
+
+  const input = document.getElementById('target-input');
+  input.value = getTargetFor(m);
+
   document.getElementById('target-section-title').textContent = `Target ${prettyLabel} (netto punten totaal)`;
-  document.getElementById('target-current').textContent = `${fmtPts(netPT)} van ${target} punten`;
-  const pctEl = document.getElementById('target-pct');
-  pctEl.textContent = `${Math.round(targetPct)}%`;
-  pctEl.className = 'pct' + (targetPct >= 100 ? ' over' : '');
-  const fill = document.getElementById('target-fill');
-  fill.style.width = pct + '%';
-  fill.className = 'progress-fill';
-  if (targetPct >= 100) fill.classList.add('over');
-  if (netPT < 0) { fill.classList.add('neg'); fill.style.width = '0%'; }
-
-  // Target-split: hoeveel komt uit elke vestiging
-  const splitEl = document.getElementById('target-split');
-  const sPct = target > 0 ? Math.round(netPS / target * 100) : 0;
-  const aPct = target > 0 ? Math.round(netPA / target * 100) : 0;
-  splitEl.innerHTML = `
-    <span>Schilde: <strong>${signPts(netPS)} pt</strong> (${sPct}% van target)</span>
-    <span>Antwerpen: <strong>${signPts(netPA)} pt</strong> (${aPct}% van target)</span>
-  `;
-
-  const noteEl = document.getElementById('target-note');
-  const targetSource = MONTHLY_TARGETS[m] ? 'ingesteld maandtarget' : `default ${DEFAULT_TARGET} punten (geen specifiek target voor deze maand)`;
-  const pool = netPT > 0 ? netPT * 10 : 0;
-  const poolLabel = isCurrent ? 'Lopende bonuspool bij huidige stand' : `Bonuspool ${monthName}`;
-  noteEl.textContent = `${poolLabel}: € ${fmtPts(pool)} · ${targetSource}`;
+  applyTargetRender();
 
   // --- Tier breakdown totaal ---
   const tbEl = document.getElementById('tier-breakdown');
@@ -1121,6 +1156,77 @@ function renderEventColumn(prefix, items, sign) {
 
 function escapeHtml(s) {
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Herbereken + hertekenen van target-card op basis van de huidige input-waarde.
+// Wordt zowel aangeroepen door renderForMonth() als door de live input-handler.
+function applyTargetRender() {
+  if (!targetContext) return;
+  const { month, netPT, netPS, netPA, prettyLabel, monthName, isCurrent } = targetContext;
+  const input = document.getElementById('target-input');
+  const raw = Number(input.value);
+  const target = Number.isFinite(raw) && raw >= 0 ? raw : 0;
+
+  const targetPct = target > 0 ? (netPT / target * 100) : 0;
+  const pct = Math.max(0, Math.min(100, targetPct));
+
+  document.getElementById('target-current-value').textContent = fmtPts(netPT);
+
+  const pctEl = document.getElementById('target-pct');
+  pctEl.textContent = target > 0 ? `${Math.round(targetPct)}%` : '—';
+  pctEl.className = 'pct' + (target > 0 && targetPct >= 100 ? ' over' : '');
+
+  const fill = document.getElementById('target-fill');
+  fill.className = 'progress-fill';
+  if (target <= 0 || netPT < 0) {
+    fill.style.width = '0%';
+    if (netPT < 0) fill.classList.add('neg');
+  } else {
+    fill.style.width = pct + '%';
+    if (targetPct >= 100) fill.classList.add('over');
+  }
+
+  const sPct = target > 0 ? Math.round(netPS / target * 100) : 0;
+  const aPct = target > 0 ? Math.round(netPA / target * 100) : 0;
+  const splitEl = document.getElementById('target-split');
+  splitEl.innerHTML = target > 0
+    ? `<span>Schilde: <strong>${signPts(netPS)} pt</strong> (${sPct}% van target)</span>
+       <span>Antwerpen: <strong>${signPts(netPA)} pt</strong> (${aPct}% van target)</span>`
+    : `<span>Schilde: <strong>${signPts(netPS)} pt</strong></span>
+       <span>Antwerpen: <strong>${signPts(netPA)} pt</strong></span>`;
+
+  const customSet = hasStoredTarget(month);
+  let targetSource;
+  if (customSet) targetSource = 'handmatig ingesteld voor deze maand';
+  else if (MONTHLY_TARGETS[month] !== undefined) targetSource = 'ingesteld maandtarget (code-default)';
+  else targetSource = `default ${DEFAULT_TARGET} punten (geen specifiek target voor deze maand)`;
+
+  const pool = netPT > 0 ? netPT * 10 : 0;
+  const poolLabel = isCurrent ? 'Lopende bonuspool bij huidige stand' : `Bonuspool ${monthName}`;
+  document.getElementById('target-note').textContent = `${poolLabel}: € ${fmtPts(pool)} · ${targetSource}`;
+}
+
+function wireTargetInput() {
+  const input = document.getElementById('target-input');
+  if (input.dataset.wired) return;
+  input.dataset.wired = '1';
+  // 'input' event vuurt bij elke wijziging (typen, pijltjes, scroll)
+  input.addEventListener('input', () => {
+    if (!targetContext) return;
+    // Negatieve waarden niet toegestaan
+    if (input.value !== '' && Number(input.value) < 0) input.value = '0';
+    const v = input.value === '' ? '' : Number(input.value);
+    if (v === '' || Number.isNaN(v)) return;
+    saveTargetFor(targetContext.month, v);
+    applyTargetRender();
+  });
+  // Bij blur: lege waarde → terug naar laatst opgeslagen
+  input.addEventListener('blur', () => {
+    if (input.value === '' || Number.isNaN(Number(input.value))) {
+      input.value = getTargetFor(targetContext.month);
+      applyTargetRender();
+    }
+  });
 }
 
 // Bouwt één groei-chart voor een gegeven bucket-key ('totaal' | 'Schilde' | 'Antwerpen')
@@ -1264,6 +1370,7 @@ document.querySelectorAll('.toggle-btn').forEach(btn => {
     renderChart();
   });
 });
+wireTargetInput();
 
 load();
 </script>
